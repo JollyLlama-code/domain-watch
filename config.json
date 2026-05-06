@@ -1,0 +1,13 @@
+{
+  "source_url": "https://info.domain.hu/parkolas/hu/ido.html",
+  "max_short_length": 5,
+  "wordlist_languages": ["en", "hu"],
+  "min_word_zipf_frequency": 3.0,
+  "min_word_length": 3,
+  "notify_on": {
+    "short": true,
+    "dictionary": true,
+    "all_numeric": true
+  },
+  "ignore_substrings": ["xn--"]
+}

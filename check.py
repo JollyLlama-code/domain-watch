@@ -12,12 +12,14 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from wordfreq import zipf_frequency
+from wordfreq import top_n_list, zipf_frequency
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
@@ -76,6 +78,40 @@ def label(domain: str) -> str:
     return domain.rsplit(".hu", 1)[0]
 
 
+def _deaccent(s: str) -> str:
+    """Strip combining accents. nyári → nyari, kávéház → kavehaz."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+@lru_cache(maxsize=1)
+def _hu_deaccent_zipf_table() -> dict[str, float]:
+    """{deaccented_form: max_zipf_among_originals}, built once on first use.
+    Catches Hungarian domains that drop accents because URLs are ASCII
+    (nyari → nyári, kavehaz → kávéház)."""
+    table: dict[str, float] = {}
+    for w in top_n_list("hu", 80000):
+        if len(w) < 3 or any(c.isdigit() for c in w) or "-" in w or " " in w:
+            continue
+        d = _deaccent(w)
+        if d == w:
+            continue  # original had no accents — direct lookup already covers it
+        z = zipf_frequency(w, "hu")
+        if z > table.get(d, 0.0):
+            table[d] = z
+    return table
+
+
+def _zipf(word: str, lang: str) -> float:
+    """zipf_frequency with accent-stripping fallback for Hungarian."""
+    z = zipf_frequency(word, lang)
+    if z > 0 or lang != "hu":
+        return z
+    return _hu_deaccent_zipf_table().get(word, 0.0)
+
+
 def is_dictionary_word(word: str, langs: list[str], min_zipf: float, min_len: int) -> str | None:
     """Return the language code if word is a known dictionary word, else None."""
     if len(word) < min_len:
@@ -84,9 +120,38 @@ def is_dictionary_word(word: str, langs: list[str], min_zipf: float, min_len: in
     # falsely match. A true dictionary domain is a single clean word.
     if "-" in word or "_" in word:
         return None
+    # wordfreq returns nonzero frequencies for digit strings ("152", "650");
+    # those should only count as all-numeric, not "dictionary".
+    if word.isdigit():
+        return None
     for lang in langs:
-        if zipf_frequency(word, lang) >= min_zipf:
+        if _zipf(word, lang) >= min_zipf:
             return lang
+    return None
+
+
+def is_compound_word(
+    word: str, langs: list[str], min_zipf: float, min_len: int
+) -> tuple[str, str, str, str] | None:
+    """Try splitting `word` into two dictionary parts (cross-language allowed).
+    Returns (left_lang, right_lang, left, right) or None.
+    Each part must be >= min_len chars and >= min_zipf in some language."""
+    if "-" in word or "_" in word or any(c.isdigit() for c in word):
+        return None
+    if len(word) < 2 * min_len:
+        return None
+    for split in range(min_len, len(word) - min_len + 1):
+        left, right = word[:split], word[split:]
+        left_lang = next(
+            (l for l in langs if _zipf(left, l) >= min_zipf), None
+        )
+        if not left_lang:
+            continue
+        right_lang = next(
+            (l for l in langs if _zipf(right, l) >= min_zipf), None
+        )
+        if right_lang:
+            return (left_lang, right_lang, left, right)
     return None
 
 
@@ -113,6 +178,24 @@ def score(domain: str, cfg: dict) -> list[str]:
         )
         if lang:
             reasons.append(f"{lang} word")
+
+    if triggers.get("compound"):
+        compound = is_compound_word(
+            name,
+            cfg["wordlist_languages"],
+            cfg.get("compound_min_part_zipf", 4.0),
+            cfg.get("compound_min_part_length", 4),
+        )
+        if compound:
+            left_lang, right_lang, left, right = compound
+            tag = left_lang if left_lang == right_lang else f"{left_lang}+{right_lang}"
+            reasons.append(f"{tag} compound ({left}+{right})")
+
+    if triggers.get("keywords"):
+        for kw in cfg.get("keywords", []):
+            if kw and kw.lower() in name:
+                reasons.append(f"keyword ({kw})")
+                break
 
     if triggers.get("all_numeric") and name.isdigit():
         reasons.append("all-numeric")
@@ -149,8 +232,38 @@ def format_message(matches: list[tuple[str, str, list[str]]]) -> str:
     return "\n".join(lines)
 
 
+def run_test_notification(cfg: dict) -> int:
+    """Fetch page, pick top dictionary matches, send a sample notification.
+    Does not touch seen.json."""
+    rows = fetch_domains(cfg["source_url"])
+    if not rows:
+        print("ERROR: parsed 0 domains.", file=sys.stderr)
+        return 1
+
+    matches: list[tuple[str, str, list[str]]] = []
+    for domain, _parked, release in rows:
+        reasons = score(domain, cfg)
+        if reasons and any("word" in r for r in reasons):
+            matches.append((domain, release, reasons))
+
+    sample = sorted(matches, key=lambda r: (len(label(r[0])), r[0]))[:8]
+    if not sample:
+        print("No dictionary matches today to use for a test.")
+        return 1
+
+    message = "<b>[TEST]</b> " + format_message(sample)
+    print(message)
+    telegram_send(message)
+    print("Test notification sent.")
+    return 0
+
+
 def main() -> int:
     cfg = load_config()
+
+    if "--test" in sys.argv:
+        return run_test_notification(cfg)
+
     seen = load_seen()
     today_iso = date.today().isoformat()
     is_first_run = not seen

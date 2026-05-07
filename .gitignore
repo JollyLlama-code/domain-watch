@@ -5,3 +5,7 @@ venv/
 .env
 .DS_Store
 today_matches.txt
+gittoken.txt
+*token*.txt
+*.pat
+secrets.txt

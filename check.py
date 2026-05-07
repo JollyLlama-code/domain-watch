@@ -225,10 +225,9 @@ def telegram_send(text: str) -> None:
 
 
 def format_message(matches: list[tuple[str, str, list[str]]]) -> str:
-    lines = [f"<b>Domain watch</b> — {len(matches)} high-value match(es)"]
-    for domain, release_date, reasons in matches:
-        tags = ", ".join(reasons)
-        lines.append(f"• <code>{domain}</code> — {tags} (free {release_date})")
+    lines = [f"<b>Domain watch</b> — {len(matches)} match(es)"]
+    for domain, _release_date, _reasons in matches:
+        lines.append(f"<code>{domain}</code>")
     return "\n".join(lines)
 
 

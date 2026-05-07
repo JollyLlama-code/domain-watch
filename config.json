@@ -9,7 +9,7 @@
   "notify_on": {
     "short": true,
     "dictionary": true,
-    "compound": true,
+    "compound": false,
     "keywords": true,
     "all_numeric": true
   },

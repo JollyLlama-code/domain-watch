@@ -6,7 +6,7 @@ on:
     # scheduler is most likely to skip under load. 5 min is GitHub's documented
     # cron floor; sub-5-min isn't accepted. Requires the repo to be public for
     # unlimited GHA minutes — on private repos this would burn the 2000 min/mo.
-    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:

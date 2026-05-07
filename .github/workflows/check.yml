@@ -1,13 +1,21 @@
 name: Domain watch
 
 on:
+  # Primary trigger: external cron service (cron-job.org) hits the
+  # repository_dispatch API every N minutes. GitHub's own scheduler is
+  # unreliable for newly-created repos, so we keep schedule as a fallback
+  # and rely on the external trigger for actual cadence.
+  repository_dispatch:
+    types: [poll]
   schedule:
-    # Every 5 min, shifted off the round :00/:05/:30 boundaries that GitHub's
-    # scheduler is most likely to skip under load. 5 min is GitHub's documented
-    # cron floor; sub-5-min isn't accepted. Requires the repo to be public for
-    # unlimited GHA minutes — on private repos this would burn the 2000 min/mo.
     - cron: "*/5 * * * *"
   workflow_dispatch:
+
+# Run sequentially — the workflow commits seen.json back, so concurrent runs
+# would collide. New triggers queue and wait for the prior run to finish.
+concurrency:
+  group: domain-watch
+  cancel-in-progress: false
 
 permissions:
   contents: write

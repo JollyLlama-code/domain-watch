@@ -2,8 +2,10 @@ name: Domain watch
 
 on:
   schedule:
-    # Daily at 08:00 UTC (~10:00 CEST). The source page updates daily.
-    - cron: "0 8 * * *"
+    # Every 30 min at :07 and :37 (off-peak minutes; round-hour crons get
+    # skipped by GitHub during high-load windows). seen.json dedupes so
+    # frequent polling doesn't cause duplicate notifications.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 permissions:

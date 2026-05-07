@@ -29,7 +29,7 @@ SEEN_PATH = ROOT / "seen.json"
 # domains parked in the last ~31 days, so 90 is a comfortable buffer.
 SEEN_RETENTION_DAYS = 90
 
-DOMAIN_ROW_RE = re.compile(r"^[a-z0-9\-áéíóöőúüű]+\.hu$", re.IGNORECASE)
+DOMAIN_ROW_RE = re.compile(r"^[a-z0-9\-]+\.hu$", re.IGNORECASE)
 
 
 def load_config() -> dict:

@@ -2,10 +2,11 @@ name: Domain watch
 
 on:
   schedule:
-    # Every 30 min at :07 and :37 (off-peak minutes; round-hour crons get
-    # skipped by GitHub during high-load windows). seen.json dedupes so
-    # frequent polling doesn't cause duplicate notifications.
-    - cron: "7,37 * * * *"
+    # Every 5 min, shifted off the round :00/:05/:30 boundaries that GitHub's
+    # scheduler is most likely to skip under load. 5 min is GitHub's documented
+    # cron floor; sub-5-min isn't accepted. Requires the repo to be public for
+    # unlimited GHA minutes — on private repos this would burn the 2000 min/mo.
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
   workflow_dispatch:
 
 permissions:

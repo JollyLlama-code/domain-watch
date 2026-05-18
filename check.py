@@ -40,7 +40,7 @@ DOMAIN_ROW_RE = re.compile(r"^[a-z0-9\-]+\.hu$", re.IGNORECASE)
 
 
 def load_config() -> dict:
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
 
 
 def load_seen() -> dict[str, str]:

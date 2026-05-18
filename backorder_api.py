@@ -49,7 +49,7 @@ def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> F
         exp: int = Query(...),
         sig: str = Query(..., min_length=32, max_length=32),
     ):
-        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8-sig"))
         secret = os.environ.get("BACKORDER_HMAC_SECRET", "")
         if not secret:
             raise HTTPException(status_code=500, detail="server misconfigured")

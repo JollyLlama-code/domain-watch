@@ -35,7 +35,8 @@ def main() -> int:
     msg = f"{domain}|{exp}".encode("utf-8")
     sig = hmac.new(secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
 
-    url = f"http://127.0.0.1:8000/backorder?domain={domain}&exp={exp}&sig={sig}"
+    base = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
+    url = f"{base}/backorder?domain={domain}&exp={exp}&sig={sig}"
     print(f"POST {url}")
 
     req = urllib.request.Request(url, method="POST")

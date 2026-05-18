@@ -40,13 +40,13 @@ function Register-Bg-Task {
 Register-Bg-Task `
     -Name "CloudflaredTunnel" `
     -Exe $cfExe `
-    -Args "--config $cfConfig tunnel run domain-watch-backorder" `
+    -ArgList"--config $cfConfig tunnel run domain-watch-backorder" `
     -WorkingDir "C:\"
 
 Register-Bg-Task `
     -Name "BackorderAPI" `
     -Exe $pyExe `
-    -Args "-m uvicorn backorder_api:app --port 8000" `
+    -ArgList"-m uvicorn backorder_api:app --port 8000" `
     -WorkingDir $dwDir
 
 Write-Host ""

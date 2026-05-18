@@ -18,6 +18,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+import load_secrets  # noqa: F401 — populates os.environ from secrets.env
+
 ROOT = Path(__file__).resolve().parent
 
 

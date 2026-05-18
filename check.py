@@ -20,6 +20,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
+import load_secrets  # noqa: F401 — populates os.environ from secrets.env
 import requests
 from bs4 import BeautifulSoup
 from wordfreq import top_n_list, zipf_frequency

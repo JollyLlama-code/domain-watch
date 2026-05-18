@@ -18,6 +18,7 @@ import os
 import time
 from pathlib import Path
 
+import load_secrets  # noqa: F401 — populates os.environ from secrets.env
 from fastapi import FastAPI, HTTPException, Query
 
 from backorder_state import BackorderState

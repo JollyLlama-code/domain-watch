@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
 Scrape info.domain.hu's pre-deletion parking list, score domains, and notify
-via Telegram when high-value ones appear.
+via ntfy when high-value ones appear.
 
-State (which domains we've already notified about) lives in seen.json and is
-committed back to the repo by the GitHub Actions workflow.
+State (which domains we've already notified about) lives in seen.json next
+to this script.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import re
 import sys
+import time
 import unicodedata
 from datetime import date, datetime, timedelta
 from functools import lru_cache
@@ -24,6 +27,10 @@ from wordfreq import top_n_list, zipf_frequency
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 SEEN_PATH = ROOT / "seen.json"
+
+# Shared with the Oracle brute-force launcher — subscribe to this topic in the
+# ntfy phone app to receive both VM-ready pings and domain matches.
+NTFY_TOPIC = "domwatch-m5dcuxgprlov6zea90i1"
 
 # Prune seen entries older than this many days. The source page only shows
 # domains parked in the last ~31 days, so 90 is a comfortable buffer.
@@ -203,32 +210,48 @@ def score(domain: str, cfg: dict) -> list[str]:
     return reasons
 
 
-def telegram_send(text: str) -> None:
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        print("WARNING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set; skipping send.")
-        print("Would have sent:\n" + text)
-        return
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    resp = requests.post(
-        url,
-        json={
-            "chat_id": chat_id,
-            "text": text,
-            "disable_web_page_preview": True,
-            "parse_mode": "HTML",
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
+def build_action_url(
+    domain: str, *, tunnel_url: str, ttl_hours: int, now: int | None = None
+) -> str:
+    """Construct the HMAC-signed Backorder action URL.
+
+    Empty tunnel_url or missing secret returns "" - caller falls back to a
+    plain push without an action button.
+    """
+    if not tunnel_url:
+        return ""
+    secret = os.environ.get("BACKORDER_HMAC_SECRET", "")
+    if not secret:
+        return ""
+    exp = (now if now is not None else int(time.time())) + ttl_hours * 3600
+    sig = hmac.new(
+        secret.encode("utf-8"),
+        f"{domain}|{exp}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:32]
+    return f"{tunnel_url}?domain={domain}&exp={exp}&sig={sig}"
 
 
-def format_message(matches: list[tuple[str, str, list[str]]]) -> str:
-    lines = [f"<b>Domain watch</b> — {len(matches)} match(es)"]
-    for domain, _release_date, _reasons in matches:
-        lines.append(f"<code>{domain}</code>")
-    return "\n".join(lines)
+def build_ntfy_headers(*, title: str, action_url: str) -> dict[str, str]:
+    """Headers for a single per-match ntfy push. Adds Backorder action when
+    action_url is non-empty; otherwise sends a plain push."""
+    headers = {"Title": title}
+    if action_url:
+        headers["Actions"] = f"http, Backorder, {action_url}, method=POST, clear=true"
+    return headers
+
+
+def ntfy_send(headers: dict[str, str], body: str = "") -> None:
+    try:
+        resp = requests.post(
+            f"https://ntfy.sh/{NTFY_TOPIC}",
+            data=body.encode("utf-8"),
+            headers=headers,
+            timeout=30,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        print(f"ntfy send FAILED: {e}", file=sys.stderr)
 
 
 def run_test_notification(cfg: dict) -> int:
@@ -250,9 +273,10 @@ def run_test_notification(cfg: dict) -> int:
         print("No dictionary matches today to use for a test.")
         return 1
 
-    message = "<b>[TEST]</b> " + format_message(sample)
-    print(message)
-    telegram_send(message)
+    title = f"[TEST] Domain watch - {len(sample)} match"
+    body = "\n".join(d for d, _, _ in sample)
+    print(title + "\n" + body)
+    ntfy_send({"Title": title}, body)
     print("Test notification sent.")
     return 0
 
@@ -293,9 +317,17 @@ def main() -> int:
     print(f"{new_count} new since last run, {len(matches)} matched filters.")
 
     if matches:
-        message = format_message(matches)
-        print(message)
-        telegram_send(message)
+        tunnel_url = cfg.get("backorder", {}).get("tunnel_url", "")
+        ttl_hours = cfg.get("backorder", {}).get("action_ttl_hours", 24)
+        for domain, _release, reasons in matches:
+            reason_summary = ", ".join(reasons[:2])
+            title = f"{domain} - {reason_summary}"
+            print(title)
+            action_url = build_action_url(
+                domain, tunnel_url=tunnel_url, ttl_hours=ttl_hours
+            )
+            headers = build_ntfy_headers(title=title, action_url=action_url)
+            ntfy_send(headers, "")
 
     save_seen(seen)
     return 0

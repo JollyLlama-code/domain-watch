@@ -9,3 +9,9 @@ gittoken.txt
 *token*.txt
 *.pat
 secrets.txt
+.api-docs.txt
+secrets.env
+dry_run.log
+daily_count.json
+submitted_today.json
+.pytest_cache/

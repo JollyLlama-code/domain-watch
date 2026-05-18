@@ -14,5 +14,21 @@
     "all_numeric": true
   },
   "keywords": [],
-  "ignore_substrings": ["xn--"]
+  "ignore_substrings": ["xn--"],
+  "microware": {
+    "base_url": "https://api.microware.hu",
+    "username": "jollylama06@gmail.com",
+    "owner_contact_id": "24621",
+    "ns1": "ns1.microware.hu",
+    "ns2": "ns2.microware.hu",
+    "registration_years": 2,
+    "domain_type": "1f"
+  },
+  "backorder": {
+    "enabled": false,
+    "dry_run": true,
+    "daily_cap": 10,
+    "tunnel_url": "",
+    "action_ttl_hours": 24
+  }
 }

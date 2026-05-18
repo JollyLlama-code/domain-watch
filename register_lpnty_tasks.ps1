@@ -19,11 +19,11 @@ function Register-Bg-Task {
     param(
         [string]$Name,
         [string]$Exe,
-        [string]$Args,
+        [string]$ArgList,
         [string]$WorkingDir
     )
     Unregister-ScheduledTask -TaskName $Name -Confirm:$false -ErrorAction SilentlyContinue
-    $action = New-ScheduledTaskAction -Execute $Exe -Argument $Args -WorkingDirectory $WorkingDir
+    $action = New-ScheduledTaskAction -Execute $Exe -Argument $ArgList -WorkingDirectory $WorkingDir
     $trigger = New-ScheduledTaskTrigger -AtStartup
     $principal = New-ScheduledTaskPrincipal -UserId $adminSid -LogonType S4U -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet `

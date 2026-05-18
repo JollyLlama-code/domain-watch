@@ -35,11 +35,15 @@ def main() -> int:
     msg = f"{domain}|{exp}".encode("utf-8")
     sig = hmac.new(secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
 
-    base = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
+    base = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000").rstrip("/")
     url = f"{base}/backorder?domain={domain}&exp={exp}&sig={sig}"
     print(f"POST {url}")
 
-    req = urllib.request.Request(url, method="POST")
+    req = urllib.request.Request(
+        url,
+        method="POST",
+        headers={"User-Agent": "Mozilla/5.0 (compatible; domain-watch-smoke/1.0)"},
+    )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             status = resp.status

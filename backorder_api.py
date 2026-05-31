@@ -7,7 +7,7 @@ JSON suitable for ntfy + debugging.
 
 Run locally for development:
     uvicorn backorder_api:app --reload --port 8000
-On LPNTY (production), runs behind a cloudflared tunnel.
+In production, runs on the watcher server behind a cloudflared tunnel.
 """
 from __future__ import annotations
 

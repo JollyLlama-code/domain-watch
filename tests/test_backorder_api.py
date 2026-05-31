@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import backorder_api
 from backorder_api import create_app
+from microware_client import RegisterResult
 
 
 SECRET = "testsecret"
@@ -122,3 +124,61 @@ def test_resubmit_same_domain_returns_200_duplicate(tmp_path, cfg):
     r2 = client.post("/backorder", params=p)
     assert r1.status_code == 200 and r1.json()["mode"] == "dry_run"
     assert r2.status_code == 200 and r2.json()["mode"] == "duplicate"
+
+
+def test_10401_triggers_ntfy_alert(tmp_path, cfg, monkeypatch):
+    cfg["backorder"]["dry_run"] = False
+    cfg_path = write_cfg(tmp_path, cfg)
+
+    monkeypatch.setattr(
+        backorder_api, "register_backorder",
+        lambda domain, c, **k: RegisterResult(
+            success=False, mode="live", error_number=10401,
+            api_message="10401: Authentication failed",
+        ),
+    )
+    alerts = []
+    monkeypatch.setattr(
+        backorder_api, "ntfy_send",
+        lambda headers, body="": alerts.append((headers, body)),
+    )
+    monkeypatch.setattr(backorder_api.ip_guard, "load_known_ip", lambda: "1.2.3.4")
+
+    app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
+    client = TestClient(app)
+    exp = int(time.time()) + 3600
+    r = client.post(
+        "/backorder",
+        params={"domain": "foo.hu", "exp": exp, "sig": sign("foo.hu", exp)},
+    )
+    assert r.status_code == 200, r.text
+    assert len(alerts) == 1
+    assert "1.2.3.4" in alerts[0][1]
+    assert "10401" in alerts[0][1]
+
+
+def test_successful_live_result_does_not_alert(tmp_path, cfg, monkeypatch):
+    cfg["backorder"]["dry_run"] = False
+    cfg_path = write_cfg(tmp_path, cfg)
+
+    monkeypatch.setattr(
+        backorder_api, "register_backorder",
+        lambda domain, c, **k: RegisterResult(
+            success=True, mode="live", api_code=201, order_id=42,
+        ),
+    )
+    alerts = []
+    monkeypatch.setattr(
+        backorder_api, "ntfy_send",
+        lambda headers, body="": alerts.append((headers, body)),
+    )
+
+    app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
+    client = TestClient(app)
+    exp = int(time.time()) + 3600
+    r = client.post(
+        "/backorder",
+        params={"domain": "bar.hu", "exp": exp, "sig": sign("bar.hu", exp)},
+    )
+    assert r.status_code == 200, r.text
+    assert alerts == []

@@ -21,8 +21,10 @@ from pathlib import Path
 import load_secrets  # noqa: F401 — populates os.environ from secrets.env
 from fastapi import FastAPI, HTTPException, Query
 
+import ip_guard
 from backorder_state import BackorderState
 from microware_client import register_backorder
+from notify import ntfy_send
 
 ROOT = Path(__file__).resolve().parent
 
@@ -79,6 +81,14 @@ def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> F
             dry_run=cfg["backorder"]["dry_run"],
             log_path=str(state_dir / "dry_run.log"),
         )
+        if result.error_number == 10401:
+            known = ip_guard.load_known_ip()
+            ntfy_send(
+                {"Title": "domain-watch: backorder 10401"},
+                f"Backorder ELHALT ({domain}): 10401 auth hiba. Utoljara "
+                f"whitelistelt IP: {known or 'ismeretlen'}. Ellenorizd a "
+                "szerver publikus IP-jet es a microware username-et.",
+            )
         return {
             "success": result.success,
             "mode": result.mode,

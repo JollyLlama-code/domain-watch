@@ -14,4 +14,5 @@ secrets.env
 dry_run.log
 daily_count.json
 submitted_today.json
+whitelisted_ip.json
 .pytest_cache/

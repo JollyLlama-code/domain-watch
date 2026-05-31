@@ -25,13 +25,11 @@ import requests
 from bs4 import BeautifulSoup
 from wordfreq import top_n_list, zipf_frequency
 
+from notify import NTFY_TOPIC, ntfy_send  # noqa: F401 — re-export for send_test_push.py and run_test_notification
+
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 SEEN_PATH = ROOT / "seen.json"
-
-# Shared with the Oracle brute-force launcher — subscribe to this topic in the
-# ntfy phone app to receive both VM-ready pings and domain matches.
-NTFY_TOPIC = "domwatch-m5dcuxgprlov6zea90i1"
 
 # Prune seen entries older than this many days. The source page only shows
 # domains parked in the last ~31 days, so 90 is a comfortable buffer.
@@ -240,19 +238,6 @@ def build_ntfy_headers(*, title: str, action_url: str) -> dict[str, str]:
     if action_url:
         headers["Actions"] = f"http, Backorder, {action_url}, method=POST, clear=true"
     return headers
-
-
-def ntfy_send(headers: dict[str, str], body: str = "") -> None:
-    try:
-        resp = requests.post(
-            f"https://ntfy.sh/{NTFY_TOPIC}",
-            data=body.encode("utf-8"),
-            headers=headers,
-            timeout=30,
-        )
-        resp.raise_for_status()
-    except Exception as e:
-        print(f"ntfy send FAILED: {e}", file=sys.stderr)
 
 
 def run_test_notification(cfg: dict) -> int:

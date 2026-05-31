@@ -16,10 +16,11 @@ import re
 import sys
 import time
 import unicodedata
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
+import ip_guard
 import load_secrets  # noqa: F401 — populates os.environ from secrets.env
 import requests
 from bs4 import BeautifulSoup
@@ -267,11 +268,25 @@ def run_test_notification(cfg: dict) -> int:
     return 0
 
 
+def run_ip_guard() -> None:
+    """Check the public IP each run; ntfy the user when it changes so they can
+    re-whitelist at microware before a live backorder fails with 10401."""
+    current = ip_guard.current_public_ip()
+    decision = ip_guard.evaluate(current, ip_guard.load_known_ip())
+    if decision is None:
+        return
+    _action, title, body = decision
+    ntfy_send({"Title": title}, body)
+    ip_guard.save_known_ip(current, datetime.now(timezone.utc).isoformat())
+
+
 def main() -> int:
     cfg = load_config()
 
     if "--test" in sys.argv:
         return run_test_notification(cfg)
+
+    run_ip_guard()
 
     seen = load_seen()
     today_iso = date.today().isoformat()

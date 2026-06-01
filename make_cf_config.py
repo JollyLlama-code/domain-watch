@@ -33,9 +33,16 @@ def main() -> int:
     creds = json_files[-1]
     tunnel_id = creds.stem
 
+    log_path = (cf_dir / "tunnel.log").as_posix()
     content = (
         f"tunnel: {tunnel_id}\n"
         f"credentials-file: {creds.as_posix()}\n"
+        # http2 (TCP/443) is more stable than QUIC behind consumer NAT on a
+        # dynamic-IP home server — QUIC's UDP sessions get dropped by router
+        # NAT timeouts, causing intermittent Cloudflare 530 (tunnel not found).
+        "protocol: http2\n"
+        "loglevel: info\n"
+        f"logfile: {log_path}\n"
         "ingress:\n"
         f"  - hostname: {HOSTNAME}\n"
         f"    service: {LOCAL_SERVICE}\n"
@@ -52,8 +59,8 @@ def main() -> int:
     print(f"  hostname: {HOSTNAME}")
     print(f"  local service: {LOCAL_SERVICE}")
     print(f"  bytes: {len(written.encode('utf-8'))}, lines: {line_count}")
-    if line_count != 6:
-        print(f"FAIL: expected 6 lines, got {line_count}")
+    if line_count != 9:
+        print(f"FAIL: expected 9 lines, got {line_count}")
         return 2
     print("OK: config.yml looks valid")
     return 0

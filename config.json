@@ -26,8 +26,8 @@
   },
   "backorder": {
     "enabled": true,
-    "dry_run": true,
-    "daily_cap": 10,
+    "dry_run": false,
+    "daily_cap": 3,
     "tunnel_url": "https://backorder.babakocsiszakaruhaz.hu/backorder",
     "action_ttl_hours": 24
   }

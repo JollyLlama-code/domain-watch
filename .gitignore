@@ -12,6 +12,7 @@ secrets.txt
 .api-docs.txt
 secrets.env
 dry_run.log
+backorder.log
 daily_count.json
 submitted_today.json
 whitelisted_ip.json

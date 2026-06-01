@@ -157,7 +157,7 @@ def test_10401_triggers_ntfy_alert(tmp_path, cfg, monkeypatch):
     assert "10401" in alerts[0][1]
 
 
-def test_successful_live_result_does_not_alert(tmp_path, cfg, monkeypatch):
+def test_successful_live_result_pushes_and_logs(tmp_path, cfg, monkeypatch):
     cfg["backorder"]["dry_run"] = False
     cfg_path = write_cfg(tmp_path, cfg)
 
@@ -181,4 +181,46 @@ def test_successful_live_result_does_not_alert(tmp_path, cfg, monkeypatch):
         params={"domain": "bar.hu", "exp": exp, "sig": sign("bar.hu", exp)},
     )
     assert r.status_code == 200, r.text
-    assert alerts == []
+    # success now sends a result push and writes the audit log
+    assert len(alerts) == 1
+    assert "ELKAPVA" in alerts[0][1]
+    assert "42" in alerts[0][1]
+    log_lines = (tmp_path / "backorder.log").read_text(encoding="utf-8").splitlines()
+    assert len(log_lines) == 1
+    entry = json.loads(log_lines[0])
+    assert entry["domain"] == "bar.hu"
+    assert entry["success"] is True
+    assert entry["order_id"] == 42
+
+
+def test_rejected_live_result_pushes_and_logs(tmp_path, cfg, monkeypatch):
+    cfg["backorder"]["dry_run"] = False
+    cfg_path = write_cfg(tmp_path, cfg)
+
+    monkeypatch.setattr(
+        backorder_api, "register_backorder",
+        lambda domain, c, **k: RegisterResult(
+            success=False, mode="live", http_status=200, api_code=400,
+            api_message="domain not in pre-deletion",
+        ),
+    )
+    alerts = []
+    monkeypatch.setattr(
+        backorder_api, "ntfy_send",
+        lambda headers, body="": alerts.append((headers, body)),
+    )
+
+    app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
+    client = TestClient(app)
+    exp = int(time.time()) + 3600
+    r = client.post(
+        "/backorder",
+        params={"domain": "bar.hu", "exp": exp, "sig": sign("bar.hu", exp)},
+    )
+    assert r.status_code == 200, r.text
+    assert len(alerts) == 1
+    assert "ELUTASITVA" in alerts[0][1]
+    assert "domain not in pre-deletion" in alerts[0][1]
+    entry = json.loads((tmp_path / "backorder.log").read_text(encoding="utf-8").strip())
+    assert entry["success"] is False
+    assert entry["api_code"] == 400

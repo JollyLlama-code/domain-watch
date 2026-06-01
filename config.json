@@ -25,10 +25,10 @@
     "domain_type": "1f"
   },
   "backorder": {
-    "enabled": false,
+    "enabled": true,
     "dry_run": true,
     "daily_cap": 10,
-    "tunnel_url": "",
+    "tunnel_url": "https://backorder.babakocsiszakaruhaz.hu/backorder",
     "action_ttl_hours": 24
   }
 }

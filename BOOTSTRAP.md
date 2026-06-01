@@ -35,13 +35,13 @@ BACKORDER_HMAC_SECRET=<uj veletlen 32+ hex; generald: python -c "import secrets;
 ## 3. cloudflared tunnel
 
 ```powershell
-cloudflared tunnel login                       # böngészőben hagyd jóvá lappantyu.com-ra
+cloudflared tunnel login                       # böngészőben hagyd jóvá babakocsiszakaruhaz.hu-ra
 cloudflared tunnel create domain-watch-backorder
-python make_cf_config.py                        # config.yml -> backorder.lappantyu.com:8000
-cloudflared tunnel route dns domain-watch-backorder backorder.lappantyu.com
+python make_cf_config.py                        # config.yml -> backorder.babakocsiszakaruhaz.hu:8000
+cloudflared tunnel route dns domain-watch-backorder backorder.babakocsiszakaruhaz.hu
 ```
 
-> A Cloudflare DNS-ben a `backorder.lappantyu.com` CNAME most az új tunnelre
+> A Cloudflare DNS-ben a `backorder.babakocsiszakaruhaz.hu` CNAME most az új tunnelre
 > mutat. Ha a régi LPNTY route ütközne, töröld azt (lásd 7. lépés).
 
 ## 4. Taskok regisztrálása
@@ -60,11 +60,11 @@ Várt: mindhárom task `state=Ready/Running`, `lastResult=0` vagy `267009` (fut)
 ## 5. Smoke a tunnelen
 
 ```powershell
-python smoke_lpnty.py https://backorder.lappantyu.com
+python smoke_lpnty.py https://backorder.babakocsiszakaruhaz.hu
 ```
 
 Ezután állítsd be a `config.json`-ban:
-- `backorder.tunnel_url` = `https://backorder.lappantyu.com/backorder`
+- `backorder.tunnel_url` = `https://backorder.babakocsiszakaruhaz.hu/backorder`
 - `backorder.enabled` = `true`, `backorder.dry_run` = `true` (még NEM élesítünk)
 
 ## 6. Microware whitelist csere
@@ -78,7 +78,7 @@ Ezután állítsd be a `config.json`-ban:
 
 ```powershell
 Unregister-ScheduledTask -TaskName "DomainWatch","BackorderAPI","CloudflaredTunnel" -Confirm:$false
-cloudflared tunnel route dns --overwrite-dns domain-watch-backorder backorder.lappantyu.com   # ha a régi route maradt volna
+cloudflared tunnel route dns --overwrite-dns domain-watch-backorder backorder.babakocsiszakaruhaz.hu   # ha a régi route maradt volna
 ```
 
 > Ha a régi tunnelt teljesen meg akarod szüntetni: `cloudflared tunnel delete <regi-tunnel-id>` az LPNTY-n.

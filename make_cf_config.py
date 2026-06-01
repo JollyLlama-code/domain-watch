@@ -2,9 +2,9 @@
 
 Reads the tunnel UUID from the existing credentials JSON in
 ~/.cloudflared/ (avoids hard-coding it), writes a valid config.yml
-that routes backorder.lappantyu.com -> localhost:8000.
+that routes backorder.babakocsiszakaruhaz.hu -> localhost:8000.
 
-Run on LPNTY:
+Run on the server:
     python make_cf_config.py
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-HOSTNAME = "backorder.lappantyu.com"
+HOSTNAME = "backorder.babakocsiszakaruhaz.hu"
 LOCAL_SERVICE = "http://localhost:8000"
 
 

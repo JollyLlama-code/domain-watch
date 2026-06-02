@@ -12,11 +12,35 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 import requests
+import urllib3.util.connection as _urllib3_conn
+
+
+@contextmanager
+def _force_ipv4():
+    """Pin outbound connections to IPv4 for the duration of the block.
+
+    api.microware.hu publishes AAAA records, so this server reaches it over
+    IPv6 by default - but microware only whitelists our IPv4 address, so IPv6
+    connections are rejected pre-auth with a bare HTTP 404 (confirmed
+    2026-06-02: forced IPv4 -> 401 auth challenge, forced IPv6 -> 404). The
+    server's IPv6 is also volatile (SLAAC, ~1h prefix lifetime), so IPv4 is
+    the stable, already-whitelisted, ip_guard-monitored path. The backorder
+    submit is serialized, so the temporary swap of urllib3's resolver family
+    is safe.
+    """
+    original = _urllib3_conn.allowed_gai_family
+    _urllib3_conn.allowed_gai_family = lambda: socket.AF_INET
+    try:
+        yield
+    finally:
+        _urllib3_conn.allowed_gai_family = original
 
 # Verbatim from microware API docs page 25. Must NOT be reformatted - the
 # registry's HU+EN declaration text is matched literally on the registrar
@@ -102,12 +126,13 @@ def register_backorder(
         )
 
     url = cfg["microware"]["base_url"].rstrip("/") + "/domains/register"
-    resp = requests.post(
-        url,
-        data=body,
-        auth=(cfg["microware"]["username"], password),
-        timeout=30,
-    )
+    with _force_ipv4():
+        resp = requests.post(
+            url,
+            data=body,
+            auth=(cfg["microware"]["username"], password),
+            timeout=30,
+        )
     return _parse_response(resp, body)
 
 

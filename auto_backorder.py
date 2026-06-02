@@ -43,3 +43,31 @@ def mark_placed(state_path, domain: str, orderid) -> None:
         json.dump(placed, f, ensure_ascii=False, indent=2, sort_keys=True)
         tmp = f.name
     os.replace(tmp, state_path)
+
+
+def run_auto_backorders(cfg: dict, rows, state_dir) -> None:
+    """For each watched domain present on the parking list and not yet
+    successfully placed, submit a live backorder (cap bypassed). Records
+    success in auto_backorder_state.json; failures are retried next run."""
+    watched = cfg.get("auto_backorder_domains", [])
+    if not watched:
+        return
+    state_dir = Path(state_dir)
+    state_path = state_dir / "auto_backorder_state.json"
+    placed = load_placed(state_path)
+    present = {domain for domain, _parked, _release in rows}
+
+    for domain in watched:
+        if domain in placed or domain not in present:
+            continue
+        result = register_backorder(
+            domain,
+            cfg,
+            dry_run=cfg["backorder"]["dry_run"],
+            log_path=str(state_dir / "dry_run.log"),
+        )
+        if result.mode == "live":
+            log_backorder(state_dir, domain, result)
+            result_push(domain, result, prefix="AUTO")
+            if result.success:
+                mark_placed(state_path, domain, result.order_id)

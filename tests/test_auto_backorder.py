@@ -139,3 +139,20 @@ def test_run_noop_without_watched_domains(tmp_path, cfg):
     run_auto_backorders(cfg, _rows("babakocsi.hu"), tmp_path)
 
     assert len(responses.calls) == 0
+
+
+@responses.activate
+def test_run_continues_after_one_domain_fails(tmp_path, cfg):
+    # First watched domain succeeds, second fails: the loop must attempt both,
+    # placing only the successful one (placed is loaded once, not re-read mid-loop).
+    cfg["auto_backorder_domains"] = ["a.hu", "b.hu"]
+    cfg["backorder"]["dry_run"] = False
+    _add_register(201, {"domain": {"orderid": 1}, "result": {"code": 201}})
+    _add_register(400, {"result": {"code": 400, "message": "10256: not available"}})
+
+    run_auto_backorders(cfg, _rows("a.hu", "b.hu"), tmp_path)
+
+    placed = load_placed(tmp_path / "auto_backorder_state.json")
+    assert placed["a.hu"]["orderid"] == 1
+    assert "b.hu" not in placed
+    assert len(responses.calls) == 2

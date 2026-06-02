@@ -66,6 +66,7 @@ def run_auto_backorders(cfg: dict, rows, state_dir) -> None:
             dry_run=cfg["backorder"]["dry_run"],
             log_path=str(state_dir / "dry_run.log"),
         )
+        print(f"auto-backorder {domain} -> {result.mode}, success={result.success}")
         if result.mode == "live":
             log_backorder(state_dir, domain, result)
             result_push(domain, result, prefix="AUTO")

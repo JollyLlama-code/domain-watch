@@ -30,5 +30,6 @@
     "daily_cap": 3,
     "tunnel_url": "https://backorder.babakocsiszakaruhaz.hu/backorder",
     "action_ttl_hours": 24
-  }
+  },
+  "auto_backorder_domains": ["babakocsi.hu"]
 }

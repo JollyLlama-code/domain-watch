@@ -16,4 +16,5 @@ backorder.log
 daily_count.json
 submitted_today.json
 whitelisted_ip.json
+auto_backorder_state.json
 .pytest_cache/

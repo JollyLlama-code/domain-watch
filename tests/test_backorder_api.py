@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import backorder_api
+import backorder_runner
 from backorder_api import create_app
 from microware_client import RegisterResult
 
@@ -139,10 +140,10 @@ def test_10401_triggers_ntfy_alert(tmp_path, cfg, monkeypatch):
     )
     alerts = []
     monkeypatch.setattr(
-        backorder_api, "ntfy_send",
+        backorder_runner, "ntfy_send",
         lambda headers, body="": alerts.append((headers, body)),
     )
-    monkeypatch.setattr(backorder_api.ip_guard, "load_known_ip", lambda: "1.2.3.4")
+    monkeypatch.setattr(backorder_runner.ip_guard, "load_known_ip", lambda: "1.2.3.4")
 
     app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
     client = TestClient(app)
@@ -169,7 +170,7 @@ def test_successful_live_result_pushes_and_logs(tmp_path, cfg, monkeypatch):
     )
     alerts = []
     monkeypatch.setattr(
-        backorder_api, "ntfy_send",
+        backorder_runner, "ntfy_send",
         lambda headers, body="": alerts.append((headers, body)),
     )
 
@@ -206,7 +207,7 @@ def test_rejected_live_result_pushes_and_logs(tmp_path, cfg, monkeypatch):
     )
     alerts = []
     monkeypatch.setattr(
-        backorder_api, "ntfy_send",
+        backorder_runner, "ntfy_send",
         lambda headers, body="": alerts.append((headers, body)),
     )
 

@@ -60,12 +60,19 @@ def run_auto_backorders(cfg: dict, rows, state_dir) -> None:
     for domain in watched:
         if domain in placed or domain not in present:
             continue
-        result = register_backorder(
-            domain,
-            cfg,
-            dry_run=cfg["backorder"]["dry_run"],
-            log_path=str(state_dir / "dry_run.log"),
-        )
+        # Isolate per-domain failures: a microware outage (network error) must
+        # not abort the rest of check.py (the normal notify loop + seen.json
+        # save). No 201 -> no mark_placed -> retried next run. Money-safe.
+        try:
+            result = register_backorder(
+                domain,
+                cfg,
+                dry_run=cfg["backorder"]["dry_run"],
+                log_path=str(state_dir / "dry_run.log"),
+            )
+        except Exception as exc:  # noqa: BLE001 — network/API errors retried next run
+            print(f"auto-backorder {domain} -> ERROR: {exc}")
+            continue
         print(f"auto-backorder {domain} -> {result.mode}, success={result.success}")
         if result.mode == "live":
             log_backorder(state_dir, domain, result)

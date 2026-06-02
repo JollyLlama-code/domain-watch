@@ -196,3 +196,27 @@ def test_main_auto_backorders_and_skips_manual_notify(tmp_path, cfg, monkeypatch
     assert not any("babakocsi.hu" in title for title in notified)
     # ...but the non-watched match is still notified (proves the loop isn't dead)
     assert any("kave.hu" in title for title in notified)
+
+
+def test_run_swallows_register_exception_and_continues(tmp_path, cfg, monkeypatch):
+    # A network/API error on one domain must not propagate (it would abort the
+    # rest of check.py) and must not mark it placed; the next watched domain is
+    # still attempted.
+    cfg["auto_backorder_domains"] = ["boom.hu", "ok.hu"]
+    cfg["backorder"]["dry_run"] = False
+    calls = []
+
+    def fake_register(domain, c, **k):
+        calls.append(domain)
+        if domain == "boom.hu":
+            raise ConnectionError("microware unreachable")
+        return RegisterResult(success=True, mode="live", api_code=201, order_id=5)
+
+    monkeypatch.setattr("auto_backorder.register_backorder", fake_register)
+
+    run_auto_backorders(cfg, _rows("boom.hu", "ok.hu"), tmp_path)
+
+    placed = load_placed(tmp_path / "auto_backorder_state.json")
+    assert "boom.hu" not in placed
+    assert placed["ok.hu"]["orderid"] == 5
+    assert calls == ["boom.hu", "ok.hu"]

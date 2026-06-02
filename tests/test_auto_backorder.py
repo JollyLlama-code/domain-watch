@@ -192,4 +192,7 @@ def test_main_auto_backorders_and_skips_manual_notify(tmp_path, cfg, monkeypatch
     assert rc == 0
     placed = load_placed(tmp_path / "auto_backorder_state.json")
     assert placed["babakocsi.hu"]["orderid"] == 99
+    # watched domain suppressed from manual notify...
     assert not any("babakocsi.hu" in title for title in notified)
+    # ...but the non-watched match is still notified (proves the loop isn't dead)
+    assert any("kave.hu" in title for title in notified)

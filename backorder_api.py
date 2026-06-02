@@ -16,69 +16,16 @@ import hmac
 import json
 import os
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 import load_secrets  # noqa: F401 — populates os.environ from secrets.env
 from fastapi import FastAPI, HTTPException, Query
 
-import ip_guard
+from backorder_runner import log_backorder, result_push
 from backorder_state import BackorderState
 from microware_client import register_backorder
-from notify import ntfy_send
 
 ROOT = Path(__file__).resolve().parent
-
-
-def _log_backorder(state_dir: Path, domain: str, result) -> None:
-    """Append one JSON line per live submission so every real catch attempt
-    and its microware outcome leaves an audit trail (dry-runs go to
-    dry_run.log instead)."""
-    line = json.dumps(
-        {
-            "ts": datetime.now(timezone.utc).isoformat(),
-            "domain": domain,
-            "mode": result.mode,
-            "success": result.success,
-            "http_status": result.http_status,
-            "api_code": result.api_code,
-            "api_message": result.api_message,
-            "error_number": result.error_number,
-            "order_id": result.order_id,
-        },
-        ensure_ascii=False,
-    )
-    with open(state_dir / "backorder.log", "a", encoding="utf-8") as f:
-        f.write(line + "\n")
-
-
-def _result_push(domain: str, result) -> None:
-    """Send a follow-up ntfy push with the real outcome, since the ntfy app
-    only shows a checkmark (HTTP 200) and never the response body."""
-    if result.success:
-        head, tag, prio = "ELKAPVA", "white_check_mark", "high"
-        detail = f"order {result.order_id}" if result.order_id else "sikeres katches"
-    elif result.error_number == 10401:
-        head, tag, prio = "AUTH HIBA 10401", "key", "urgent"
-        known = ip_guard.load_known_ip()
-        detail = (
-            "Frissitsd a microware whitelistet (admin.microware.hu -> API "
-            f"hozzaferes). Utolso ismert IP: {known or 'ismeretlen'}."
-        )
-    else:
-        head, tag, prio = "ELUTASITVA", "x", "default"
-        bits = []
-        if result.error_number:
-            bits.append(f"hiba {result.error_number}")
-        if result.api_code is not None:
-            bits.append(f"code {result.api_code}")
-        if result.api_message:
-            bits.append(result.api_message)
-        detail = " - ".join(bits) if bits else "nincs reszlet"
-    ntfy_send(
-        {"Title": f"{domain} - {head}", "Tags": tag, "Priority": prio},
-        f"{domain}: {head}\n{detail}",
-    )
 
 
 def _verify_signature(domain: str, exp: int, sig: str, secret: str) -> bool:
@@ -134,8 +81,8 @@ def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> F
             log_path=str(state_dir / "dry_run.log"),
         )
         if result.mode == "live":
-            _log_backorder(state_dir, domain, result)
-            _result_push(domain, result)
+            log_backorder(state_dir, domain, result)
+            result_push(domain, result)
         return {
             "success": result.success,
             "mode": result.mode,

@@ -14,7 +14,7 @@ import ip_guard
 from notify import ntfy_send
 
 
-def log_backorder(state_dir, domain: str, result) -> None:
+def log_backorder(state_dir: Path | str, domain: str, result) -> None:
     """Append one JSON line per live submission so every real catch attempt
     and its microware outcome leaves an audit trail (dry-runs go to
     dry_run.log instead)."""

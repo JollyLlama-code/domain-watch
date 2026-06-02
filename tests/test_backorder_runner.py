@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 import backorder_runner
 from backorder_runner import log_backorder, result_push
@@ -16,6 +17,8 @@ def test_result_push_prefix_tags_title_and_body(monkeypatch):
     result_push("foo.hu", result, prefix="AUTO")
     headers, body = sent[0]
     assert headers["Title"] == "AUTO foo.hu - ELKAPVA"
+    assert headers["Tags"] == "white_check_mark"
+    assert headers["Priority"] == "high"
     assert body.startswith("AUTO foo.hu: ELKAPVA")
     assert "order 7" in body
 
@@ -38,3 +41,5 @@ def test_log_backorder_writes_one_json_line(tmp_path):
     entry = json.loads(lines[0])
     assert entry["domain"] == "foo.hu"
     assert entry["order_id"] == 7
+    # ts is the primary audit field — confirm it is a valid ISO timestamp
+    assert datetime.fromisoformat(entry["ts"])

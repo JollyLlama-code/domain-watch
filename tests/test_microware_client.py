@@ -18,13 +18,18 @@ def _set_api_password(monkeypatch):
 
 def test_build_register_body_includes_required_hu_fields(cfg):
     body = build_register_body("foo.hu", cfg)
-    assert body["domain"] == "foo.hu"
-    assert body["years"] == 2
+    assert body["domain"] == "foo.hu.backorder"
+    assert body["years"] == 1
     assert body["ns1"] == "ns1.microware.hu"
     assert body["ns2"] == "ns2.microware.hu"
     assert body["owner"] == "12345"
     assert body["type"] == "1f"
     assert body["declarations"] == HU_DECLARATION_TEXT
+
+
+def test_build_register_body_does_not_double_suffix(cfg):
+    body = build_register_body("foo.hu.backorder", cfg)
+    assert body["domain"] == "foo.hu.backorder"
 
 
 def test_hu_declaration_text_has_required_phrases():
@@ -72,6 +77,6 @@ def test_register_backorder_dry_run_writes_log_and_skips_http(cfg, tmp_path):
     res = register_backorder("bar.hu", cfg, dry_run=True, log_path=str(log))
     assert res.success is True
     assert res.mode == "dry_run"
-    assert res.request_body["domain"] == "bar.hu"
+    assert res.request_body["domain"] == "bar.hu.backorder"
     contents = log.read_text(encoding="utf-8")
     assert "bar.hu" in contents

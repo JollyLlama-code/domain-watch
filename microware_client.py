@@ -82,10 +82,17 @@ class RegisterResult:
 
 
 def build_register_body(domain: str, cfg: dict) -> dict[str, Any]:
-    """Construct the /domains/register POST body for a .hu backorder."""
+    """Construct the /domains/register POST body for a .hu backorder.
+
+    microware drop-catches a still-parked (revoked) domain only when the
+    domain field carries a `.backorder` suffix; a plain name is treated as an
+    immediate registration and rejected with errorno 10256 while the target is
+    still parked. Backorders must also request a single year (years>1 ->
+    errorno 10255). Both confirmed by microware support, ticket #497545."""
     mw = cfg["microware"]
+    target = domain if domain.endswith(".backorder") else f"{domain}.backorder"
     return {
-        "domain": domain,
+        "domain": target,
         "years": mw["registration_years"],
         "ns1": mw["ns1"],
         "ns2": mw["ns2"],

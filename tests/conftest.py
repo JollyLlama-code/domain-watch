@@ -15,7 +15,7 @@ def cfg() -> dict:
             "owner_contact_id": "12345",
             "ns1": "ns1.microware.hu",
             "ns2": "ns2.microware.hu",
-            "registration_years": 2,
+            "registration_years": 1,
             "domain_type": "1f",
         },
         "backorder": {

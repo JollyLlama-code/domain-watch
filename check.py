@@ -27,6 +27,7 @@ from bs4 import BeautifulSoup
 from wordfreq import top_n_list, zipf_frequency
 
 from notify import NTFY_TOPIC, ntfy_send  # noqa: F401 — re-export for send_test_push.py and run_test_notification
+from auto_backorder import run_auto_backorders
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
@@ -288,16 +289,18 @@ def main() -> int:
 
     run_ip_guard()
 
-    seen = load_seen()
-    today_iso = date.today().isoformat()
-    is_first_run = not seen
-
     rows = fetch_domains(cfg["source_url"])
     if not rows:
         print("ERROR: parsed 0 domains — page format may have changed.", file=sys.stderr)
         return 1
 
     print(f"Fetched {len(rows)} domains from source.")
+
+    run_auto_backorders(cfg, rows, ROOT)
+
+    seen = load_seen()
+    today_iso = date.today().isoformat()
+    is_first_run = not seen
 
     matches: list[tuple[str, str, list[str]]] = []
     new_count = 0
@@ -320,7 +323,10 @@ def main() -> int:
     if matches:
         tunnel_url = cfg.get("backorder", {}).get("tunnel_url", "")
         ttl_hours = cfg.get("backorder", {}).get("action_ttl_hours", 24)
+        auto_domains = set(cfg.get("auto_backorder_domains", []))
         for domain, _release, reasons in matches:
+            if domain in auto_domains:
+                continue
             reason_summary = ", ".join(reasons[:2])
             title = f"{domain} - {reason_summary}"
             print(title)

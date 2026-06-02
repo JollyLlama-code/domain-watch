@@ -7,7 +7,9 @@ import pytest
 import responses
 import backorder_runner
 
+import check
 from auto_backorder import load_placed, mark_placed, run_auto_backorders
+from microware_client import RegisterResult
 
 
 def test_load_placed_missing_file_returns_empty(tmp_path):
@@ -156,3 +158,38 @@ def test_run_continues_after_one_domain_fails(tmp_path, cfg):
     assert placed["a.hu"]["orderid"] == 1
     assert "b.hu" not in placed
     assert len(responses.calls) == 2
+
+
+def test_main_auto_backorders_and_skips_manual_notify(tmp_path, cfg, monkeypatch):
+    cfg["auto_backorder_domains"] = ["babakocsi.hu"]
+    cfg["backorder"]["dry_run"] = False
+    cfg["source_url"] = "http://example/parkolas"
+    cfg["notify_on"] = {"short": False, "dictionary": False, "compound": False, "keywords": True, "all_numeric": False}
+    cfg["keywords"] = ["babakocsi", "kave"]
+    cfg["ignore_substrings"] = []
+    cfg["wordlist_languages"] = ["en", "hu"]
+    cfg["min_word_zipf_frequency"] = 3.0
+    cfg["min_word_length"] = 3
+
+    monkeypatch.setattr(check, "load_config", lambda: cfg)
+    monkeypatch.setattr(check, "ROOT", tmp_path)
+    monkeypatch.setattr(check, "SEEN_PATH", tmp_path / "seen.json")
+    (tmp_path / "seen.json").write_text('{"old.hu": "2026-06-01"}', encoding="utf-8")
+    monkeypatch.setattr(check, "run_ip_guard", lambda: None)
+    monkeypatch.setattr(check, "fetch_domains", lambda url: [
+        ("babakocsi.hu", "2026-06-02", "2026-07-03"),
+        ("kave.hu", "2026-06-02", "2026-07-03"),
+    ])
+    monkeypatch.setattr(
+        "auto_backorder.register_backorder",
+        lambda domain, c, **k: RegisterResult(success=True, mode="live", api_code=201, order_id=99),
+    )
+    notified = []
+    monkeypatch.setattr(check, "ntfy_send", lambda headers, body="": notified.append(headers.get("Title", "")))
+
+    rc = check.main()
+
+    assert rc == 0
+    placed = load_placed(tmp_path / "auto_backorder_state.json")
+    assert placed["babakocsi.hu"]["orderid"] == 99
+    assert not any("babakocsi.hu" in title for title in notified)

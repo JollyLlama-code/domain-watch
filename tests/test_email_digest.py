@@ -76,3 +76,48 @@ def test_digest_without_link_when_no_confirm_url(monkeypatch):
     )
     assert "foo.hu" in html
     assert "/confirm?domain=" not in html  # no link rendered
+
+
+import check
+
+
+def _cfg(email_enabled=True):
+    return {
+        "notify": {"email": {"enabled": email_enabled,
+                              "to": "parapet@freestart.hu",
+                              "from": "jollylama06@gmail.com"}},
+        "backorder": {"confirm_url": "https://tun.example/confirm",
+                      "action_ttl_hours": 24},
+    }
+
+
+def test_notify_email_sends_one_email_with_all_matches(monkeypatch):
+    monkeypatch.setenv("BACKORDER_HMAC_SECRET", SECRET)
+    sent = []
+    monkeypatch.setattr(
+        check.email_notify, "email_send",
+        lambda **kw: sent.append(kw),
+    )
+    check.notify_email(
+        [("foo.hu", ["en word"]), ("bar.hu", ["short"])],
+        _cfg(), now=1_700_000_000,
+    )
+    assert len(sent) == 1
+    kw = sent[0]
+    assert kw["to"] == "parapet@freestart.hu"
+    assert kw["sender"] == "jollylama06@gmail.com"
+    assert "foo.hu" in kw["html"] and "bar.hu" in kw["html"]
+
+
+def test_notify_email_skipped_when_disabled(monkeypatch):
+    sent = []
+    monkeypatch.setattr(check.email_notify, "email_send", lambda **kw: sent.append(kw))
+    check.notify_email([("foo.hu", ["en word"])], _cfg(email_enabled=False))
+    assert sent == []
+
+
+def test_notify_email_skipped_when_no_matches(monkeypatch):
+    sent = []
+    monkeypatch.setattr(check.email_notify, "email_send", lambda **kw: sent.append(kw))
+    check.notify_email([], _cfg())
+    assert sent == []

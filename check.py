@@ -28,6 +28,7 @@ from wordfreq import top_n_list, zipf_frequency
 
 from notify import NTFY_TOPIC, ntfy_send  # noqa: F401 — re-export for send_test_push.py and run_test_notification
 from auto_backorder import run_auto_backorders
+import email_notify
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
@@ -287,6 +288,29 @@ def build_email_digest(
     return subject, text, html
 
 
+def notify_email(
+    matches: list[tuple[str, list[str]]], cfg: dict, now: int | None = None
+) -> None:
+    """Send the per-run digest email when enabled and there are matches."""
+    email_cfg = cfg.get("notify", {}).get("email", {})
+    if not email_cfg.get("enabled") or not matches:
+        return
+    bo = cfg.get("backorder", {})
+    subject, text, html = build_email_digest(
+        matches,
+        confirm_url=bo.get("confirm_url", ""),
+        ttl_hours=bo.get("action_ttl_hours", 24),
+        now=now,
+    )
+    email_notify.email_send(
+        to=email_cfg["to"],
+        sender=email_cfg["from"],
+        subject=subject,
+        html=html,
+        text=text,
+    )
+
+
 def build_ntfy_headers(*, title: str, action_url: str) -> dict[str, str]:
     """Headers for a single per-match ntfy push. Adds Backorder action when
     action_url is non-empty; otherwise sends a plain push."""
@@ -378,9 +402,12 @@ def main() -> int:
         tunnel_url = cfg.get("backorder", {}).get("tunnel_url", "")
         ttl_hours = cfg.get("backorder", {}).get("action_ttl_hours", 24)
         auto_domains = set(cfg.get("auto_backorder_domains", []))
-        for domain, _release, reasons in matches:
-            if domain in auto_domains:
-                continue
+        notifiable = [
+            (domain, reasons)
+            for domain, _release, reasons in matches
+            if domain not in auto_domains
+        ]
+        for domain, reasons in notifiable:
             reason_summary = ", ".join(reasons[:2])
             title = f"{domain} - {reason_summary}"
             print(title)
@@ -389,6 +416,7 @@ def main() -> int:
             )
             headers = build_ntfy_headers(title=title, action_url=action_url)
             ntfy_send(headers, "")
+        notify_email(notifiable, cfg)
 
     save_seen(seen)
     return 0

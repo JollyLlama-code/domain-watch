@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html as _html
 import json
 import os
 import re
@@ -273,14 +274,17 @@ def build_email_digest(
         text_rows.append(
             f"{domain} - {reason_summary}" + (f"  ->  {link}" if link else "")
         )
+        safe_domain = _html.escape(domain)
+        safe_reason = _html.escape(reason_summary)
         if link:
+            safe_link = _html.escape(link, quote=True)
             html_rows.append(
-                f'<li><strong>{domain}</strong> - {reason_summary} '
-                f'&nbsp; <a href="{link}">Lefoglalas &rarr;</a></li>'
+                f'<li><strong>{safe_domain}</strong> - {safe_reason} '
+                f'&nbsp; <a href="{safe_link}">Lefoglalas &rarr;</a></li>'
             )
         else:
             html_rows.append(
-                f"<li><strong>{domain}</strong> - {reason_summary}</li>"
+                f"<li><strong>{safe_domain}</strong> - {safe_reason}</li>"
             )
 
     text = "\n".join(text_rows)

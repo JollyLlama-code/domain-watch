@@ -128,3 +128,17 @@ def test_notify_email_swallows_config_errors(monkeypatch):
     bad_cfg = {"notify": {"email": {"enabled": True}}, "backorder": {}}
     check.notify_email([("foo.hu", ["en word"])], bad_cfg)  # must not raise
     assert sent == []
+
+
+def test_digest_html_escapes_text(monkeypatch):
+    monkeypatch.setenv("BACKORDER_HMAC_SECRET", SECRET)
+    subject, text, html = build_email_digest(
+        [("a<b>.hu", ["x&y"])],
+        confirm_url="https://tun.example/confirm",
+        ttl_hours=24,
+        now=1_700_000_000,
+    )
+    # raw metacharacters must not appear unescaped in the HTML part
+    assert "<b>" not in html
+    assert "a&lt;b&gt;.hu" in html
+    assert "x&amp;y" in html

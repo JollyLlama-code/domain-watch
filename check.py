@@ -211,15 +211,15 @@ def score(domain: str, cfg: dict) -> list[str]:
     return reasons
 
 
-def build_action_url(
-    domain: str, *, tunnel_url: str, ttl_hours: int, now: int | None = None
+def _build_signed_url(
+    domain: str, base_url: str, ttl_hours: int, now: int | None
 ) -> str:
-    """Construct the HMAC-signed Backorder action URL.
+    """Append an HMAC-signed ?domain&exp&sig query to base_url.
 
-    Empty tunnel_url or missing secret returns "" - caller falls back to a
-    plain push without an action button.
+    Empty base_url or missing secret returns "" - callers fall back to a plain
+    notification with no action link.
     """
-    if not tunnel_url:
+    if not base_url:
         return ""
     secret = os.environ.get("BACKORDER_HMAC_SECRET", "")
     if not secret:
@@ -230,7 +230,21 @@ def build_action_url(
         f"{domain}|{exp}".encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()[:32]
-    return f"{tunnel_url}?domain={domain}&exp={exp}&sig={sig}"
+    return f"{base_url}?domain={domain}&exp={exp}&sig={sig}"
+
+
+def build_action_url(
+    domain: str, *, tunnel_url: str, ttl_hours: int, now: int | None = None
+) -> str:
+    """Construct the HMAC-signed ntfy Backorder action URL (POST target)."""
+    return _build_signed_url(domain, tunnel_url, ttl_hours, now)
+
+
+def build_confirm_url(
+    domain: str, *, confirm_url: str, ttl_hours: int, now: int | None = None
+) -> str:
+    """Construct the HMAC-signed confirmation-page URL for the email link."""
+    return _build_signed_url(domain, confirm_url, ttl_hours, now)
 
 
 def build_ntfy_headers(*, title: str, action_url: str) -> dict[str, str]:

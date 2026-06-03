@@ -34,3 +34,4 @@ def email_send(*, to: str, sender: str, subject: str, html: str, text: str) -> N
             smtp.sendmail(sender, [to], msg.as_string())
     except Exception as e:
         print(f"email send FAILED: {e}", file=sys.stderr)
+

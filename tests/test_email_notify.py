@@ -53,6 +53,8 @@ def test_email_send_uses_gmail_starttls_and_login(monkeypatch):
     assert to_addrs == ["parapet@freestart.hu"]
     assert "Domain watch" in raw
     assert "foo.hu" in raw
+    assert "text/plain" in raw
+    assert "text/html" in raw
 
 
 def test_email_send_swallows_errors(monkeypatch):

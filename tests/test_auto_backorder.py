@@ -8,7 +8,13 @@ import responses
 import backorder_runner
 
 import check
-from auto_backorder import load_placed, mark_placed, run_auto_backorders
+import auto_backorder
+from auto_backorder import (
+    attempt_watched_now,
+    load_placed,
+    mark_placed,
+    run_auto_backorders,
+)
 from microware_client import RegisterResult
 
 
@@ -196,6 +202,52 @@ def test_main_auto_backorders_and_skips_manual_notify(tmp_path, cfg, monkeypatch
     assert not any("babakocsi.hu" in title for title in notified)
     # ...but the non-watched match is still notified (proves the loop isn't dead)
     assert any("kave.hu" in title for title in notified)
+
+
+@responses.activate
+def test_attempt_now_skips_already_placed(tmp_path, cfg):
+    # The per-minute retry must no-op (no HTTP, no cost) once placed.
+    cfg["backorder"]["dry_run"] = False
+    mark_placed(tmp_path / "auto_backorder_state.json", "babakocsi.hu", 1)
+    _add_register(201, {"domain": {"orderid": 9}, "result": {"code": 201}})
+
+    placed = attempt_watched_now(cfg, tmp_path, "babakocsi.hu")
+
+    assert placed is True
+    assert len(responses.calls) == 0
+
+
+@responses.activate
+def test_attempt_now_success_marks_placed_and_pushes(tmp_path, cfg, monkeypatch):
+    cfg["backorder"]["dry_run"] = False
+    _add_register(201, {"domain": {"orderid": 77}, "result": {"code": 201, "message": "Created"}})
+    pushes = []
+    monkeypatch.setattr(auto_backorder, "result_push", lambda *a, **k: pushes.append(a))
+
+    placed = attempt_watched_now(cfg, tmp_path, "babakocsi.hu")
+
+    assert placed is True
+    assert load_placed(tmp_path / "auto_backorder_state.json")["babakocsi.hu"]["orderid"] == 77
+    assert len(pushes) == 1
+    assert (tmp_path / "backorder.log").exists()
+
+
+@responses.activate
+def test_attempt_now_failure_logs_but_does_not_push(tmp_path, cfg, monkeypatch):
+    # 24/7 retries hit 10258 every minute: log every attempt for audit, but do
+    # NOT push — otherwise the phone gets ~1440 rejection notifications a day.
+    cfg["backorder"]["dry_run"] = False
+    _add_register(400, {"result": {"code": 400, "errorno": 10258, "errormsg": "Domain already exist's"}})
+    pushes = []
+    monkeypatch.setattr(auto_backorder, "result_push", lambda *a, **k: pushes.append(a))
+
+    placed = attempt_watched_now(cfg, tmp_path, "babakocsi.hu")
+
+    assert placed is False
+    assert load_placed(tmp_path / "auto_backorder_state.json") == {}
+    assert len(pushes) == 0
+    log = (tmp_path / "backorder.log").read_text(encoding="utf-8")
+    assert "10258" in log
 
 
 def test_run_swallows_register_exception_and_continues(tmp_path, cfg, monkeypatch):

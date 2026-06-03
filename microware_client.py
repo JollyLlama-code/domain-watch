@@ -157,14 +157,33 @@ def _parse_response(resp: requests.Response, body: dict[str, Any]) -> RegisterRe
 
     result = payload.get("result", {})
     api_code = result.get("code")
-    api_message = result.get("message", "")
     order_id = payload.get("domain", {}).get("orderid")
+
+    # Real microware errors carry a structured errorno/errormsg pair; result.message
+    # is then only a generic "Bad Request". Prefer the structured human text so the
+    # log records the real reason (e.g. 10258 "Domain already exists"), and fall back
+    # to result.message for the older inline "<errorno>: <text>" shape.
+    errormsg = result.get("errormsg")
+    errormessages = result.get("errormessages")
+    if errormsg:
+        api_message = str(errormsg)
+    elif errormessages:
+        api_message = "; ".join(str(m) for m in errormessages)
+    else:
+        api_message = result.get("message", "")
+
     error_number: int | None = None
     if api_code != 201:
-        for tok in api_message.replace(":", " ").split():
-            if tok.isdigit() and len(tok) == 5:
-                error_number = int(tok)
-                break
+        errno_field = result.get("errorno")
+        if isinstance(errno_field, int):
+            error_number = errno_field
+        elif isinstance(errno_field, str) and errno_field.isdigit():
+            error_number = int(errno_field)
+        else:
+            for tok in result.get("message", "").replace(":", " ").split():
+                if tok.isdigit() and len(tok) == 5:
+                    error_number = int(tok)
+                    break
 
     return RegisterResult(
         success=api_code == 201,

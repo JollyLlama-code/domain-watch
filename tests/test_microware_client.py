@@ -72,6 +72,32 @@ def test_register_backorder_lost_catch_returns_error_number(cfg):
     assert res.api_code == 400
 
 
+@responses.activate
+def test_register_backorder_reads_structured_errorno_field(cfg):
+    """Real microware errors carry errorno/errormsg as structured fields while
+    result.message is just a generic 'Bad Request'. The client must surface the
+    structured errorno (e.g. 10258 'Domain already exists') and its human text
+    so backorder.log records the real reason, not 'Bad Request'."""
+    responses.add(
+        responses.POST,
+        "https://api.microware.hu/domains/register",
+        json={
+            "result": {
+                "code": 400,
+                "message": "Bad Request",
+                "errormessages": ["Domain already exist's"],
+                "errorno": 10258,
+                "errormsg": "Domain already exist's",
+            }
+        },
+        status=400,
+    )
+    res = register_backorder("foo.hu", cfg, dry_run=False)
+    assert res.success is False
+    assert res.error_number == 10258
+    assert "Domain already exist's" in res.api_message
+
+
 def test_register_backorder_dry_run_writes_log_and_skips_http(cfg, tmp_path):
     log = tmp_path / "dry_run.log"
     res = register_backorder("bar.hu", cfg, dry_run=True, log_path=str(log))

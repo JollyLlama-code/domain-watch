@@ -45,6 +45,40 @@ def mark_placed(state_path, domain: str, orderid) -> None:
     os.replace(tmp, state_path)
 
 
+def attempt_watched_now(cfg: dict, state_dir, domain: str) -> bool:
+    """Submit one live backorder for `domain` WITHOUT consulting the parking
+    list — used by the standalone per-minute retry task (retry_backorder.py),
+    which runs 24/7 with no scrape. Honors placed-state and dry_run, bypasses
+    the daily cap. Logs every live attempt for audit, but pushes ntfy ONLY on
+    success: at one attempt per minute a rejection push (e.g. 10258) would
+    flood the phone ~1440x/day. Returns True if the domain is placed (already
+    or now). Money-safe: charge only on a real 201 catch.
+    """
+    state_dir = Path(state_dir)
+    state_path = state_dir / "auto_backorder_state.json"
+    if domain in load_placed(state_path):
+        return True
+    try:
+        result = register_backorder(
+            domain,
+            cfg,
+            dry_run=cfg["backorder"]["dry_run"],
+            log_path=str(state_dir / "dry_run.log"),
+        )
+    except Exception as exc:  # noqa: BLE001 — network/API error, retried next minute
+        print(f"retry-backorder {domain} -> ERROR: {exc}")
+        return False
+    print(f"retry-backorder {domain} -> {result.mode}, success={result.success}")
+    if result.mode != "live":
+        return bool(result.success)  # dry_run: synthetic success, no state change
+    log_backorder(state_dir, domain, result)
+    if result.success:
+        result_push(domain, result, prefix="AUTO")
+        mark_placed(state_path, domain, result.order_id)
+        return True
+    return False
+
+
 def run_auto_backorders(cfg: dict, rows, state_dir) -> None:
     """For each watched domain present on the parking list and not yet
     successfully placed, submit a live backorder (cap bypassed). Records

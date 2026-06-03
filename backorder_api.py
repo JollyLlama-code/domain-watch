@@ -20,6 +20,7 @@ from pathlib import Path
 
 import load_secrets  # noqa: F401 — populates os.environ from secrets.env
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
 
 from backorder_runner import log_backorder, result_push
 from backorder_state import BackorderState
@@ -92,6 +93,25 @@ def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> F
             "api_message": result.api_message,
             "error_number": result.error_number,
         }
+
+    @app.get("/confirm", response_class=HTMLResponse)
+    def confirm(
+        domain: str = Query(..., min_length=4, max_length=63),
+        exp: int = Query(...),
+        sig: str = Query(..., min_length=32, max_length=32),
+    ):
+        # Render-only: prefetch-safe. The real booking is the POST below.
+        action = f"/backorder?domain={domain}&exp={exp}&sig={sig}"
+        return (
+            "<!doctype html><html lang='hu'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            f"<title>Lefoglalas: {domain}</title></head><body>"
+            f"<h2>{domain}</h2>"
+            "<p>Megerosited a backorder leadasat?</p>"
+            f'<form method="post" action="{action}">'
+            "<button type='submit'>Megerositem a foglalast</button>"
+            "</form></body></html>"
+        )
 
     return app
 

@@ -15,6 +15,13 @@
   },
   "keywords": [],
   "ignore_substrings": ["xn--"],
+  "notify": {
+    "email": {
+      "enabled": true,
+      "to": "parapet@freestart.hu",
+      "from": "jollylama06@gmail.com"
+    }
+  },
   "microware": {
     "base_url": "https://api.microware.hu",
     "username": "jollylama06@gmail.com",
@@ -29,6 +36,7 @@
     "dry_run": false,
     "daily_cap": 3,
     "tunnel_url": "https://backorder.babakocsiszakaruhaz.hu/backorder",
+    "confirm_url": "https://backorder.babakocsiszakaruhaz.hu/confirm",
     "action_ttl_hours": 24
   },
   "auto_backorder_domains": ["babakocsi.hu"]

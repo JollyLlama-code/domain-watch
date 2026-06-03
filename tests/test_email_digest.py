@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 
+import check
 from check import build_confirm_url, build_email_digest
 
 SECRET = "topsecret"
@@ -78,9 +79,6 @@ def test_digest_without_link_when_no_confirm_url(monkeypatch):
     assert "/confirm?domain=" not in html  # no link rendered
 
 
-import check
-
-
 def _cfg(email_enabled=True):
     return {
         "notify": {"email": {"enabled": email_enabled,
@@ -120,4 +118,13 @@ def test_notify_email_skipped_when_no_matches(monkeypatch):
     sent = []
     monkeypatch.setattr(check.email_notify, "email_send", lambda **kw: sent.append(kw))
     check.notify_email([], _cfg())
+    assert sent == []
+
+
+def test_notify_email_swallows_config_errors(monkeypatch):
+    sent = []
+    monkeypatch.setattr(check.email_notify, "email_send", lambda **kw: sent.append(kw))
+    # 'enabled' true but missing 'to'/'from' keys -> must NOT raise
+    bad_cfg = {"notify": {"email": {"enabled": True}}, "backorder": {}}
+    check.notify_email([("foo.hu", ["en word"])], bad_cfg)  # must not raise
     assert sent == []

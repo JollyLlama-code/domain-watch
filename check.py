@@ -295,20 +295,23 @@ def notify_email(
     email_cfg = cfg.get("notify", {}).get("email", {})
     if not email_cfg.get("enabled") or not matches:
         return
-    bo = cfg.get("backorder", {})
-    subject, text, html = build_email_digest(
-        matches,
-        confirm_url=bo.get("confirm_url", ""),
-        ttl_hours=bo.get("action_ttl_hours", 24),
-        now=now,
-    )
-    email_notify.email_send(
-        to=email_cfg["to"],
-        sender=email_cfg["from"],
-        subject=subject,
-        html=html,
-        text=text,
-    )
+    try:
+        bo = cfg.get("backorder", {})
+        subject, text, html = build_email_digest(
+            matches,
+            confirm_url=bo.get("confirm_url", ""),
+            ttl_hours=bo.get("action_ttl_hours", 24),
+            now=now,
+        )
+        email_notify.email_send(
+            to=email_cfg["to"],
+            sender=email_cfg["from"],
+            subject=subject,
+            html=html,
+            text=text,
+        )
+    except Exception as e:
+        print(f"email notify FAILED: {e}", file=sys.stderr)
 
 
 def build_ntfy_headers(*, title: str, action_url: str) -> dict[str, str]:

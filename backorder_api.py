@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 import json
 import os
 import time
@@ -101,12 +102,17 @@ def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> F
         sig: str = Query(..., min_length=32, max_length=32),
     ):
         # Render-only: prefetch-safe. The real booking is the POST below.
-        action = f"/backorder?domain={domain}&exp={exp}&sig={sig}"
+        safe_domain = html.escape(domain)
+        action = (
+            f"/backorder?domain={html.escape(domain, quote=True)}"
+            f"&exp={exp}&sig={html.escape(sig, quote=True)}"
+        )
         return (
             "<!doctype html><html lang='hu'><head><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>Lefoglalas: {domain}</title></head><body>"
-            f"<h2>{domain}</h2>"
+            "<meta name='robots' content='noindex'>"
+            f"<title>Lefoglalas: {safe_domain}</title></head><body>"
+            f"<h2>{safe_domain}</h2>"
             "<p>Megerosited a backorder leadasat?</p>"
             f'<form method="post" action="{action}">'
             "<button type='submit'>Megerositem a foglalast</button>"

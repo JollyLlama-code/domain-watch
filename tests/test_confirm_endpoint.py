@@ -55,3 +55,21 @@ def test_confirm_get_renders_post_form_and_does_not_book(tmp_path, cfg, monkeypa
     assert "foo.hu" in body
     # GET must NOT trigger a booking
     assert booked == []
+
+
+def test_confirm_escapes_domain_to_prevent_xss(tmp_path, cfg, monkeypatch):
+    cfg_path = write_cfg(tmp_path, cfg)
+    monkeypatch.setattr(backorder_api, "register_backorder", lambda *a, **k: None)
+    app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
+    client = TestClient(app)
+
+    exp = int(time.time()) + 3600
+    evil = "x<img src=x onerror=alert(1)>.hu"  # < 63 chars, passes Query validation
+    r = client.get(
+        "/confirm",
+        params={"domain": evil, "exp": exp, "sig": sign(evil, exp)},
+    )
+    assert r.status_code == 200, r.text
+    # raw angle brackets from the payload must NOT appear unescaped in the body
+    assert "<img src=x onerror=alert(1)>" not in r.text
+    assert "&lt;img" in r.text  # escaped form present

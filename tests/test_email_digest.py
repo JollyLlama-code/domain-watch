@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from check import build_confirm_url
+from check import build_confirm_url, build_email_digest
 
 SECRET = "topsecret"
 
@@ -39,27 +39,31 @@ def test_build_confirm_url_missing_secret_returns_empty(monkeypatch):
     assert build_confirm_url("foo.hu", confirm_url="https://x", ttl_hours=24) == ""
 
 
-from check import build_email_digest
-
-
 def test_digest_lists_each_match_with_confirm_link(monkeypatch):
     monkeypatch.setenv("BACKORDER_HMAC_SECRET", SECRET)
-    matches = [("foo.hu", ["en word"]), ("bar.hu", ["short", "all-numeric"])]
+    matches = [
+        ("foo.hu", ["en word"]),
+        ("bar.hu", ["short", "all-numeric"]),
+        ("baz.hu", ["short", "en word", "all-numeric"]),
+    ]
     subject, text, html = build_email_digest(
         matches,
         confirm_url="https://tun.example/confirm",
         ttl_hours=24,
         now=1_700_000_000,
     )
-    assert "2" in subject
-    # both domains present in both parts
-    for d in ("foo.hu", "bar.hu"):
+    assert subject == "Domain watch - 3 talalat"
+    # all three domains present in both parts
+    for d in ("foo.hu", "bar.hu", "baz.hu"):
         assert d in text and d in html
     # html has a confirm link per row, pointing at /confirm
-    assert html.count("https://tun.example/confirm?domain=") == 2
+    assert html.count("https://tun.example/confirm?domain=") == 3
     assert "Lefoglalas" in html  # link label
     # reason summary shown
     assert "en word" in html
+    # baz.hu: first two reasons shown, third truncated
+    assert "short, en word" in html      # baz: first two reasons joined
+    assert "short, en word, all-numeric" not in html  # third reason truncated
 
 
 def test_digest_without_link_when_no_confirm_url(monkeypatch):

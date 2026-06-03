@@ -247,6 +247,46 @@ def build_confirm_url(
     return _build_signed_url(domain, confirm_url, ttl_hours, now)
 
 
+def build_email_digest(
+    matches: list[tuple[str, list[str]]],
+    *,
+    confirm_url: str,
+    ttl_hours: int,
+    now: int | None = None,
+) -> tuple[str, str, str]:
+    """Build (subject, text, html) for the per-run backorder digest email.
+
+    matches: already filtered (auto-backorder domains excluded). Each entry is
+    (domain, reasons). When confirm_url + secret are available, each row gets a
+    signed "Lefoglalas" link to the /confirm page; otherwise a plain list.
+    """
+    subject = f"Domain watch - {len(matches)} talalat"
+
+    text_rows: list[str] = []
+    html_rows: list[str] = []
+    for domain, reasons in matches:
+        reason_summary = ", ".join(reasons[:2])
+        link = build_confirm_url(
+            domain, confirm_url=confirm_url, ttl_hours=ttl_hours, now=now
+        )
+        text_rows.append(
+            f"{domain} - {reason_summary}" + (f"  ->  {link}" if link else "")
+        )
+        if link:
+            html_rows.append(
+                f'<li><strong>{domain}</strong> - {reason_summary} '
+                f'&nbsp; <a href="{link}">Lefoglalas &rarr;</a></li>'
+            )
+        else:
+            html_rows.append(
+                f"<li><strong>{domain}</strong> - {reason_summary}</li>"
+            )
+
+    text = "\n".join(text_rows)
+    html = "<html><body><ul>" + "".join(html_rows) + "</ul></body></html>"
+    return subject, text, html
+
+
 def build_ntfy_headers(*, title: str, action_url: str) -> dict[str, str]:
     """Headers for a single per-match ntfy push. Adds Backorder action when
     action_url is non-empty; otherwise sends a plain push."""

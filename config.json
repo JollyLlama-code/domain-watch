@@ -1,6 +1,6 @@
 {
   "source_url": "https://info.domain.hu/parkolas/hu/ido.html",
-  "max_short_length": 4,
+  "max_short_length": 3,
   "wordlist_languages": ["en", "hu"],
   "min_word_zipf_frequency": 3.0,
   "min_word_length": 3,
@@ -39,5 +39,5 @@
     "confirm_url": "https://backorder.babakocsiszakaruhaz.hu/confirm",
     "action_ttl_hours": 24
   },
-  "auto_backorder_domains": ["babakocsi.hu"]
+  "auto_backorder_domains": []
 }

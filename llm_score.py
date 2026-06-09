@@ -20,7 +20,8 @@ SYSTEM_PROMPT = (
     "egy értelmes magyar vagy angol szó/kifejezés, termékkategória, szolgáltatás "
     "vagy jól márkázható név (pl. 'szeletelo' -> konyhai eszköz, 'borklub' -> "
     "bor/közösség). Nem értékes a véletlenszerű betűhalmaz vagy értelmetlen string "
-    "(pl. 'xkqztr'). A 'category' mező értékteleneknél legyen üres string."
+    "(pl. 'xkqztr'). A 'category' mező értékteleneknél legyen üres string. "
+    "A 'domain' mezőben pontosan a kapott stringet add vissza (pl. 'szeletelo.hu')."
 )
 
 _SCHEMA = {
@@ -74,7 +75,7 @@ def classify_domains(names: list[str], cfg: dict, client=None):
             client = anthropic.Anthropic()
         resp = client.messages.create(
             model=llm_cfg.get("model", MODEL_DEFAULT),
-            max_tokens=4096,
+            max_tokens=8192,
             system=SYSTEM_PROMPT,
             messages=[
                 {

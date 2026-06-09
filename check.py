@@ -230,9 +230,8 @@ def decide_matches(new_rows, cfg, classify_fn=llm_score.classify_domains):
             for domain, _parked, release in new_rows:
                 verdict = verdicts.get(domain)
                 if verdict and verdict.get("valuable"):
-                    matches.append(
-                        (domain, release, ["AI: " + verdict.get("category", "")])
-                    )
+                    category = verdict.get("category") or "értékes"
+                    matches.append((domain, release, ["AI: " + category]))
             return matches, False
         llm_failed = True
     else:

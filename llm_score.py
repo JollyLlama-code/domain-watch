@@ -45,8 +45,12 @@ _SCHEMA = {
 }
 
 
-def classify_domains(names, cfg, client=None):
-    """Return verdict dict, or None to signal fallback. {} for empty input."""
+def classify_domains(names: list[str], cfg: dict, client=None):
+    """Return verdict dict, or None to signal fallback. {} for empty input.
+
+    Callers are responsible for checking cfg['llm']['enabled'] before invoking;
+    this function does not consult the enabled flag.
+    """
     if not names:
         return {}
 
@@ -80,8 +84,11 @@ def classify_domains(names, cfg, client=None):
             ],
             output_config={"format": {"type": "json_schema", "schema": _SCHEMA}},
         )
-        text = next(b.text for b in resp.content if b.type == "text")
-        data = json.loads(text)
+        text_block = next((b for b in resp.content if b.type == "text"), None)
+        if text_block is None:
+            print("llm_score: no text block in response", file=sys.stderr)
+            return None
+        data = json.loads(text_block.text)
         out = {}
         for item in data.get("results", []):
             domain = item.get("domain")

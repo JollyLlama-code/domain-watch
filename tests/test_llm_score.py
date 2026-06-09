@@ -86,3 +86,22 @@ def test_api_error_returns_none(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     out = llm_score.classify_domains(["szeletelo.hu"], _cfg(), client=_RaisingClient())
     assert out is None
+
+
+class _EmptyResp:
+    content = []
+
+
+class _EmptyMessages:
+    def create(self, **kwargs):
+        return _EmptyResp()
+
+
+class _EmptyClient:
+    messages = _EmptyMessages()
+
+
+def test_no_text_block_returns_none(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    out = llm_score.classify_domains(["szeletelo.hu"], _cfg(), client=_EmptyClient())
+    assert out is None

@@ -30,6 +30,7 @@ from wordfreq import top_n_list, zipf_frequency
 from notify import NTFY_TOPIC, ntfy_send  # noqa: F401 — re-export for send_test_push.py and run_test_notification
 from auto_backorder import run_auto_backorders
 import email_notify
+import llm_score
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
@@ -211,6 +212,38 @@ def score(domain: str, cfg: dict) -> list[str]:
         reasons.append("all-numeric")
 
     return reasons
+
+
+def decide_matches(new_rows, cfg, classify_fn=llm_score.classify_domains):
+    """Decide which new domains to notify about.
+
+    new_rows: list of (domain, parked, release) for domains not seen before.
+    Returns (matches, llm_failed) where matches items are
+    (domain, release, reasons). When the LLM is enabled but classify_fn returns
+    None, fall back to rule-based score() and set llm_failed=True so the caller
+    can alert.
+    """
+    if cfg.get("llm", {}).get("enabled"):
+        verdicts = classify_fn([d for d, _p, _r in new_rows], cfg)
+        if verdicts is not None:
+            matches = []
+            for domain, _parked, release in new_rows:
+                verdict = verdicts.get(domain)
+                if verdict and verdict.get("valuable"):
+                    matches.append(
+                        (domain, release, ["AI: " + verdict.get("category", "")])
+                    )
+            return matches, False
+        llm_failed = True
+    else:
+        llm_failed = False
+
+    matches = []
+    for domain, _parked, release in new_rows:
+        reasons = score(domain, cfg)
+        if reasons:
+            matches.append((domain, release, reasons))
+    return matches, llm_failed
 
 
 def _build_signed_url(

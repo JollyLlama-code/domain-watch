@@ -420,23 +420,26 @@ def main() -> int:
     today_iso = date.today().isoformat()
     is_first_run = not seen
 
-    matches: list[tuple[str, str, list[str]]] = []
-    new_count = 0
-    for domain, _parked, release in rows:
+    new_rows: list[tuple[str, str, str]] = []
+    for domain, parked, release in rows:
         if domain in seen:
             continue
-        new_count += 1
         seen[domain] = today_iso
-        reasons = score(domain, cfg)
-        if reasons:
-            matches.append((domain, release, reasons))
+        new_rows.append((domain, parked, release))
 
     if is_first_run:
-        print(f"First run: seeded {new_count} domains into seen.json. Skipping notification.")
+        print(f"First run: seeded {len(new_rows)} domains into seen.json. Skipping notification.")
         save_seen(seen)
         return 0
 
-    print(f"{new_count} new since last run, {len(matches)} matched filters.")
+    matches, llm_failed = decide_matches(new_rows, cfg)
+    print(f"{len(new_rows)} new since last run, {len(matches)} matched filters.")
+
+    if llm_failed:
+        ntfy_send(
+            {"Title": "domain-watch: LLM scoring failed"},
+            "Fell back to rule-based scoring for this run.",
+        )
 
     if matches:
         tunnel_url = cfg.get("backorder", {}).get("tunnel_url", "")

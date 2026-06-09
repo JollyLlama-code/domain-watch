@@ -71,3 +71,18 @@ def test_parses_structured_response(monkeypatch):
         "xkqztr.hu": {"valuable": False, "category": ""},
     }
     assert client.messages.last_kwargs["model"] == "claude-haiku-4-5"
+
+
+class _RaisingMessages:
+    def create(self, **kwargs):
+        raise RuntimeError("api down")
+
+
+class _RaisingClient:
+    messages = _RaisingMessages()
+
+
+def test_api_error_returns_none(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    out = llm_score.classify_domains(["szeletelo.hu"], _cfg(), client=_RaisingClient())
+    assert out is None

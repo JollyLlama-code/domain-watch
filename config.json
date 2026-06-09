@@ -6,6 +6,11 @@
   "min_word_length": 3,
   "compound_min_part_zipf": 4.0,
   "compound_min_part_length": 4,
+  "llm": {
+    "enabled": true,
+    "model": "claude-haiku-4-5",
+    "max_domains_per_run": 200
+  },
   "notify_on": {
     "short": true,
     "dictionary": true,

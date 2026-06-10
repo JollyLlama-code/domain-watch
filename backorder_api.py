@@ -23,22 +23,30 @@ import load_secrets  # noqa: F401 — populates os.environ from secrets.env
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from backorder_runner import log_backorder, result_push
+from backorder_runner import log_backorder, result_push, tap_failure_push
 from backorder_state import BackorderState
 from microware_client import register_backorder
 
 ROOT = Path(__file__).resolve().parent
 
 
-def _verify_signature(domain: str, exp: int, sig: str, secret: str) -> bool:
-    if exp < int(time.time()):
-        return False
+def _signature_state(domain: str, exp: int, sig: str, secret: str) -> str:
+    """Return 'valid', 'expired', or 'invalid'.
+
+    'expired' is only returned when the HMAC itself matches — i.e. a genuine
+    tap on a stale link — so callers can safely notify the user. A non-matching
+    signature ('invalid') means a random/forged POST to the public endpoint and
+    must stay silent to avoid notification spam."""
     expected = hmac.new(
         secret.encode("utf-8"),
         f"{domain}|{exp}".encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()[:32]
-    return hmac.compare_digest(expected, sig)
+    if not hmac.compare_digest(expected, sig):
+        return "invalid"
+    if exp < int(time.time()):
+        return "expired"
+    return "valid"
 
 
 def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> FastAPI:
@@ -58,7 +66,11 @@ def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> F
         if not secret:
             raise HTTPException(status_code=500, detail="server misconfigured")
 
-        if not _verify_signature(domain, exp, sig, secret):
+        sig_state = _signature_state(domain, exp, sig, secret)
+        if sig_state == "expired":
+            tap_failure_push(domain, "expired")
+            raise HTTPException(status_code=403, detail="bad signature or expired")
+        if sig_state != "valid":
             raise HTTPException(status_code=403, detail="bad signature or expired")
 
         if not cfg["backorder"]["enabled"]:
@@ -74,6 +86,8 @@ def create_app(cfg_path: Path | None = None, state_dir: Path | None = None) -> F
                     "domain": domain,
                     "reason": reason,
                 }
+            if reason == "daily_cap_reached":
+                tap_failure_push(domain, "cap")
             raise HTTPException(status_code=429, detail=reason)
 
         result = register_backorder(

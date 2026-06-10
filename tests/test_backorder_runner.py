@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 import backorder_runner
-from backorder_runner import log_backorder, result_push
+from backorder_runner import log_backorder, result_push, tap_failure_push
 from microware_client import RegisterResult
 
 
@@ -31,6 +31,27 @@ def test_result_push_no_prefix_unchanged(monkeypatch):
     result_push("foo.hu", result)
     headers, _ = sent[0]
     assert headers["Title"] == "foo.hu - ELKAPVA"
+
+
+def test_tap_failure_push_expired_names_domain(monkeypatch):
+    sent = []
+    monkeypatch.setattr(backorder_runner, "ntfy_send",
+                        lambda headers, body="": sent.append((headers, body)))
+    tap_failure_push("foo.hu", "expired")
+    headers, body = sent[0]
+    assert "LEJART" in headers["Title"]
+    assert "foo.hu" in headers["Title"]
+    assert "foo.hu" in body
+
+
+def test_tap_failure_push_cap_names_limit(monkeypatch):
+    sent = []
+    monkeypatch.setattr(backorder_runner, "ntfy_send",
+                        lambda headers, body="": sent.append((headers, body)))
+    tap_failure_push("bar.hu", "cap")
+    headers, body = sent[0]
+    assert "LIMIT" in headers["Title"]
+    assert "bar.hu" in headers["Title"]
 
 
 def test_log_backorder_writes_one_json_line(tmp_path):

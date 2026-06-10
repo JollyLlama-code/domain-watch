@@ -113,6 +113,69 @@ def test_cap_reached_returns_429(tmp_path, cfg):
     assert r2.status_code == 429
 
 
+def test_expired_tap_notifies_user(tmp_path, cfg, monkeypatch):
+    cfg_path = write_cfg(tmp_path, cfg)
+    alerts = []
+    monkeypatch.setattr(
+        backorder_api, "tap_failure_push",
+        lambda domain, kind: alerts.append((domain, kind)),
+    )
+    app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
+    client = TestClient(app)
+
+    exp = int(time.time()) - 60
+    r = client.post(
+        "/backorder",
+        params={"domain": "foo.hu", "exp": exp, "sig": sign("foo.hu", exp)},
+    )
+    assert r.status_code == 403
+    assert alerts == [("foo.hu", "expired")]
+
+
+def test_bad_signature_does_not_notify(tmp_path, cfg, monkeypatch):
+    cfg_path = write_cfg(tmp_path, cfg)
+    alerts = []
+    monkeypatch.setattr(
+        backorder_api, "tap_failure_push",
+        lambda domain, kind: alerts.append((domain, kind)),
+    )
+    app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
+    client = TestClient(app)
+
+    exp = int(time.time()) + 3600
+    r = client.post(
+        "/backorder",
+        params={"domain": "foo.hu", "exp": exp, "sig": "0" * 32},
+    )
+    assert r.status_code == 403
+    assert alerts == []
+
+
+def test_cap_reached_notifies_user(tmp_path, cfg, monkeypatch):
+    cfg["backorder"]["dry_run"] = True
+    cfg["backorder"]["daily_cap"] = 1
+    cfg_path = write_cfg(tmp_path, cfg)
+    alerts = []
+    monkeypatch.setattr(
+        backorder_api, "tap_failure_push",
+        lambda domain, kind: alerts.append((domain, kind)),
+    )
+    app = create_app(cfg_path=cfg_path, state_dir=tmp_path)
+    client = TestClient(app)
+
+    exp = int(time.time()) + 3600
+    client.post(
+        "/backorder",
+        params={"domain": "a.hu", "exp": exp, "sig": sign("a.hu", exp)},
+    )
+    r2 = client.post(
+        "/backorder",
+        params={"domain": "b.hu", "exp": exp, "sig": sign("b.hu", exp)},
+    )
+    assert r2.status_code == 429
+    assert alerts == [("b.hu", "cap")]
+
+
 def test_resubmit_same_domain_returns_200_duplicate(tmp_path, cfg):
     cfg["backorder"]["dry_run"] = True
     cfg_path = write_cfg(tmp_path, cfg)

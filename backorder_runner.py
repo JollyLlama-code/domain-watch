@@ -65,3 +65,30 @@ def result_push(domain: str, result, prefix: str = "") -> None:
         {"Title": f"{tag_prefix}{domain} - {head}", "Tags": tag, "Priority": prio},
         f"{tag_prefix}{domain}: {head}\n{detail}",
     )
+
+
+def tap_failure_push(domain: str, kind: str) -> None:
+    """Notify the user when a Backorder tap failed *before* submission.
+
+    The ntfy app draws a checkmark as soon as the request completes, which
+    looks like success even on a 4xx — so a tap that expired or hit the cap
+    would otherwise leave no honest signal. kind: 'expired' | 'cap'."""
+    if kind == "expired":
+        head, tag, prio = "LINK LEJART", "hourglass", "default"
+        detail = (
+            "A foglalas linkje lejart, nem lett leadva. Vard meg a kovetkezo "
+            "ertesitest es onnan foglald le ujra."
+        )
+    elif kind == "cap":
+        head, tag, prio = "NAPI LIMIT", "warning", "default"
+        detail = (
+            "Elerted a napi backorder limitet, ez nem lett leadva. Emeld a "
+            "daily_cap erteket a configban, ha tobbet szeretnel."
+        )
+    else:
+        head, tag, prio = "SIKERTELEN", "x", "default"
+        detail = kind
+    ntfy_send(
+        {"Title": f"{domain} - {head}", "Tags": tag, "Priority": prio},
+        f"{domain}: {head}\n{detail}",
+    )
